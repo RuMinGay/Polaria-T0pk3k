@@ -110,7 +110,7 @@ thumbImage.Position = UDim2.new(0, 10, 0, 10)
 thumbImage.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 thumbImage.BorderColor3 = Color3.fromRGB(140, 0, 255)
 thumbImage.BorderSizePixel = 2
-thumbImage.ScaleType = Enum.ScaleType.Fit  -- �ъ쭊 鍮꾩쑉 �좎�
+thumbImage.ScaleType = Enum.ScaleType.Fit
 
 local content, isReady = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 thumbImage.Image = content
@@ -213,7 +213,7 @@ local function selectPlayer(p)
 		profileImage.Image = ""
 	end
 
-	task.wait() -- �뱀� RunService.Heartbeat:Wait()
+	task.wait()
 for _, child in ipairs(buttonHolder:GetChildren()) do
 	if child:IsA("TextButton") then
 		child:Destroy()
@@ -658,7 +658,7 @@ local localPlayer = game.Players.LocalPlayer
 
 local connection 
 
-createActionButton("Bring", function()
+createActionButton("Character Bring", function()
     bringEnabled = not bringEnabled
 
     if bringEnabled then
@@ -721,6 +721,57 @@ local RunService = game:GetService("RunService")
     end
 end)
 
+createActionButton("FTI Kill", function()
+    local Players = game:GetService("Players")
+local localPlayer = Players.LocalPlayer
+local toggled = false
+local connection = nil
+local targetParts = {}
+
+local function getBodyParts(character)
+    local parts = {}
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and not part:IsA("Accessory") then
+            table.insert(parts, part)
+        end
+    end
+    return parts
+end
+
+local function startTouchLoop()
+    if not selectedPlayer or not selectedPlayer.Character then return end
+    targetParts = getBodyParts(selectedPlayer.Character)
+    
+    connection = task.spawn(function()
+        while toggled and localPlayer.Character and localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm") do
+            local arm = localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm")
+            for _, part in ipairs(targetParts) do
+                firetouchinterest(arm, part, 0)
+                task.wait(0.05)
+                firetouchinterest(arm, part, 1)
+            end
+            task.wait(0.1)
+        end
+    end)
+end
+
+local function stopTouchLoop()
+    toggled = false
+    if connection then
+        task.cancel(connection)
+        connection = nil
+    end
+end
+
+-- 토글 실행
+if not toggled then
+    toggled = true
+    startTouchLoop()
+else
+    stopTouchLoop()
+end
+end)
+
 createActionButton("loopgoto", function()
     local Players = game:GetService("Players")
     local RunService = game:GetService("RunService")
@@ -760,14 +811,34 @@ createActionButton("loopgoto", function()
     end
 end)
 
+local savedPositions = {}
+
 createActionButton("goto", function()
     if not selectedPlayer then return end
     local player = game:GetService("Players").LocalPlayer
     local character = player.Character
     local targetCharacter = selectedPlayer.Character
-    
+
+    if character and character:FindFirstChild("HumanoidRootPart") then
+        savedPositions["GOTO"] = character.HumanoidRootPart.CFrame
+        print("현재 위치 GOTO로 저장됨")
+    end
+
     if character and character:FindFirstChild("HumanoidRootPart") and targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
-        character.HumanoidRootPart.CFrame = targetCharacter.HumanoidRootPart.CFrame * CFrame.new(0, 3, 0) 
+        character.HumanoidRootPart.CFrame = targetCharacter.HumanoidRootPart.CFrame * CFrame.new(0, 3, 0)
+        print("선택 플레이어에게 텔레포트 완료")
+    end
+end)
+
+createActionButton("goto back", function()
+    local player = game:GetService("Players").LocalPlayer
+    local character = player.Character
+
+    if character and character:FindFirstChild("HumanoidRootPart") and savedPositions["GOTO"] then
+        character.HumanoidRootPart.CFrame = savedPositions["GOTO"]
+        print("저장된 GOTO 위치로 복귀 완료")
+    else
+        print("저장된 GOTO 위치가 없습니다.")
     end
 end)
 end
@@ -779,10 +850,9 @@ if character and character:FindFirstChild("HumanoidRootPart") and targetCharacte
 local function addPlayerToList(p)
     if p == player then return end
 
-    -- �대� 踰꾪듉�� �덈뒗吏� 泥댄겕
     for _, child in ipairs(playerListFrame:GetChildren()) do
         if child:IsA("TextButton") and child.Text == p.Name then
-            return  -- �대� 踰꾪듉�� �덉쑝硫� �꾨Т寃껊룄 �덊븿
+            return
         end
     end
 
@@ -795,9 +865,8 @@ local function addPlayerToList(p)
     button.MouseButton1Click:Connect(function()
         selectPlayer(p)
     end)
-	local playerButtons = {} -- [UserId] = button
+	local playerButtons = {}
 
--- �뚮젅�댁뼱 踰꾪듉 �앹꽦 �⑥닔 (�섏젙)
 local function createPlayerButton(p)
 	local button = Instance.new("TextButton", playerListFrame)
 	button.Size = UDim2.new(1, -10, 0, 30)
@@ -811,22 +880,19 @@ local function createPlayerButton(p)
 		selectPlayer(p)
 	end)
 
-	playerButtons[p.UserId] = button -- �깅줉
+	playerButtons[p.UserId] = button
 end
 
--- 紐⑤뱺 �꾩옱 �뚮젅�댁뼱 踰꾪듉 �앹꽦
 for _, p in ipairs(Players:GetPlayers()) do
-	if p ~= player then -- 濡쒖뺄 �뚮젅�댁뼱�� �쒖쇅
+	if p ~= player then
 		createPlayerButton(p)
 	end
 end
 
--- �덈줈�� �뚮젅�댁뼱媛� �ㅼ뼱�ㅻ㈃ 踰꾪듉 �앹꽦
 Players.PlayerAdded:Connect(function(p)
 	createPlayerButton(p)
 end)
 
--- �섍컙 �뚮젅�댁뼱�� 踰꾪듉 �쒓굅
 Players.PlayerRemoving:Connect(function(p)
 	local button = playerButtons[p.UserId]
 	if button and button.Parent then
@@ -844,14 +910,12 @@ Players.PlayerRemoving:Connect(function(removedPlayer)
 		end
 	end
 
-	-- �좏깮�섏뼱 �덈뜕 �뚮젅�댁뼱媛� �섍컮�ㅻ㈃ 珥덇린��
 	if selectedPlayer == removedPlayer then
 		selectPlayer(nil)
 	end
 end)
 
 local function refreshPlayerList()
-	-- 湲곗〈 踰꾪듉 �꾨� �쒓굅 (Server 踰꾪듉�� �쒖쇅!)
 	for _, child in ipairs(playerListFrame:GetChildren()) do
 		if child:IsA("TextButton") and child ~= serverButton then
 			child:Destroy()
@@ -859,7 +923,7 @@ local function refreshPlayerList()
 	end
 
 	for _, p in ipairs(Players:GetPlayers()) do
-		if p ~= player then  -- 蹂몄씤�� �쒖쇅 (�먰븳�ㅻ㈃)
+		if p ~= player then 
 			local button = Instance.new("TextButton")
 			button.Size = UDim2.new(1, -10, 0, 30)
 			button.Text = p.Name
@@ -877,7 +941,6 @@ end
 
 refreshPlayerList()
 
--- �뚮젅�댁뼱 異붽� 諛� �쒓굅 �� �먮룞 媛깆떊
 Players.PlayerAdded:Connect(refreshPlayerList)
 Players.PlayerRemoving:Connect(function()
 	refreshPlayerList()
@@ -893,20 +956,15 @@ end
 Players.PlayerAdded:Connect(refreshPlayerList)
 Players.PlayerRemoving:Connect(refreshPlayerList)
 
--- 湲곗〈�� 留뚮뱺 serverButton
-
--- �꾩옱 �앹꽦�� 踰꾪듉�� 異붿쟻�섏� �딄퀬, 紐⑤뱺 TextButton�� 源붾걫�섍쾶 �쒓굅
 local function refreshPlayerList()
     print("Refreshing Player List...")
 
-    -- serverButton �쒖쇅�섍퀬 TextButton ��젣
     for _, child in ipairs(playerListFrame:GetChildren()) do
         if child:IsA("TextButton") and child ~= serverButton then
             child:Destroy()
         end
     end
 
-    -- �뚮젅�댁뼱 由ъ뒪�� �ㅼ떆 �앹꽦
     for _, p in ipairs(Players:GetPlayers()) do
         if p ~= Players.LocalPlayer then
             local btn = Instance.new("TextButton")
@@ -924,7 +982,6 @@ local function refreshPlayerList()
     end
 end
 
--- 以묐났 �곌껐 諛⑹� + �대깽�� �곌껐�� UI 珥덇린�� �앸궃 �� �� �� 踰덈쭔!
 Players.PlayerAdded:Connect(function()
     task.wait(0.1)
     refreshPlayerList()
@@ -935,25 +992,25 @@ Players.PlayerRemoving:Connect(function()
     refreshPlayerList()
 end)
 
--- 珥덇린 由ъ뒪�� 梨꾩슦湲�
 refreshPlayerList()
 end
 
 local executorTab = tabFrames["Executor"]
 
-_G.logToConsole = function(text, messageType)
-	local colorMap = {
-		info = Color3.fromRGB(200, 200, 200),
-		warn = Color3.fromRGB(255, 200, 0),
-		error = Color3.fromRGB(255, 100, 100),
-		runtime = Color3.fromRGB(255, 50, 50),
-		compile = Color3.fromRGB(255, 0, 0)
-	}
-	addConsoleMessage("[" .. messageType .. "] " .. text, colorMap[messageType] or Color3.fromRGB(255, 255, 255))
-end
+local consoleFrame = Instance.new("ScrollingFrame", executorTab)
+consoleFrame.Size = UDim2.new(1, -20, 0.4, -50)
+consoleFrame.Position = UDim2.new(0, 10, 0.55, 10)
+consoleFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+consoleFrame.BorderSizePixel = 0
+consoleFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
+consoleFrame.ScrollBarThickness = 6
+
+local consoleLayout = Instance.new("UIListLayout", consoleFrame)
+consoleLayout.SortOrder = Enum.SortOrder.LayoutOrder
+consoleLayout.Padding = UDim.new(0, 2)
 
 local inputBox = Instance.new("TextBox", executorTab)
-inputBox.Size = UDim2.new(1, -20, 1, -70)
+inputBox.Size = UDim2.new(1, -20, 0.4, -10)
 inputBox.Position = UDim2.new(0, 10, 0, 10)
 inputBox.MultiLine = true
 inputBox.TextWrapped = true
@@ -975,88 +1032,13 @@ runButton.TextSize = 18
 
 local statusLabel = Instance.new("TextLabel", executorTab)
 statusLabel.Size = UDim2.new(0, 180, 0, 40)
-statusLabel.Position = UDim2.new(1, -300, 1, -50) 
-statusLabel.BackgroundTransparency = 1
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0) 
-statusLabel.Font = Enum.Font.SourceSansBold
-statusLabel.TextSize = 18
-statusLabel.Text = "Execute : Client                                                                                                                                                                                                                           "
-statusLabel.Visible = true 
-
-runButton.MouseButton1Click:Connect(function()
-    local code = inputBox.Text
-    local func, err = loadstring(code)
-    if func then
-        task.spawn(func)
-    else
-        warn("�ㅽ뻾 �ㅻ쪟: " .. err)
-    end
-end)
-
-local executorTab = tabFrames["Executor"]
-
-local executorFrame = Instance.new("Frame", executorTab)
-executorFrame.Size = UDim2.new(1, 0, 1, 0)
-executorFrame.BackgroundTransparency = 1
-executorFrame.Visible = true
-
-local inputBox = Instance.new("TextBox", executorFrame)
-inputBox.Size = UDim2.new(1, -20, 0.5, -20)
-inputBox.Position = UDim2.new(0, 10, 0, 10)
-inputBox.MultiLine = true
-inputBox.TextWrapped = true
-inputBox.ClearTextOnFocus = false
-inputBox.Text = "-- LuaU Code in here"
-inputBox.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-inputBox.TextColor3 = Color3.new(1, 1, 1)
-inputBox.Font = Enum.Font.Code
-inputBox.TextSize = 16
-
-local runButton = Instance.new("TextButton", executorFrame)
-runButton.Size = UDim2.new(0, 100, 0, 40)
-runButton.Position = UDim2.new(1, -110, 0.5, 10)
-runButton.Text = "Execute"
-runButton.BackgroundColor3 = Color3.fromRGB(0, 120, 0)
-runButton.TextColor3 = Color3.new(1, 1, 1)
-runButton.Font = Enum.Font.SourceSansBold
-runButton.TextSize = 18
-
-local statusLabel = Instance.new("TextLabel", executorFrame)
-statusLabel.Size = UDim2.new(0, 180, 0, 40)
-statusLabel.Position = UDim2.new(1, -300, 0.5, 10)
+statusLabel.Position = UDim2.new(0, 10, 1, -50)
 statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.TextSize = 18
-statusLabel.Text = "Execute on : client                                                                                                                                                                                                                       "
+statusLabel.Text = "Execute on : client"
 statusLabel.Visible = true
-
-local consoleFrame = Instance.new("ScrollingFrame", executorFrame)
-consoleFrame.Size = UDim2.new(1, -20, 0.4, -20)
-consoleFrame.Position = UDim2.new(0, 10, 0.6, 10)
-consoleFrame.BackgroundColor3 = Color3.fromRGB(10, 10, 10)
-consoleFrame.ScrollBarThickness = 8
-consoleFrame.CanvasSize = UDim2.new(0, 0, 0, 0)
-consoleFrame.BorderSizePixel = 0
-consoleFrame.Visible = true
-
-local consoleLayout = Instance.new("UIListLayout", consoleFrame)
-consoleLayout.SortOrder = Enum.SortOrder.LayoutOrder
-consoleLayout.Padding = UDim.new(0, 2)
-
-local consoleButton = Instance.new("TextButton", executorFrame)
-consoleButton.Size = UDim2.new(0, 100, 0, 40)
-consoleButton.Position = UDim2.new(1, -220, 0.5, 10)
-consoleButton.Text = "Close console"
-consoleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-consoleButton.TextColor3 = Color3.new(1, 1, 1)
-consoleButton.Font = Enum.Font.SourceSansBold
-consoleButton.TextSize = 18
-
-consoleButton.MouseButton1Click:Connect(function()
-	consoleFrame.Visible = not consoleFrame.Visible
-	consoleButton.Text = consoleFrame.Visible and "Close console" or "Open console"
-end)
 
 local function addConsoleMessage(text, color)
 	local msg = Instance.new("TextLabel")
@@ -1074,8 +1056,20 @@ local function addConsoleMessage(text, color)
 	consoleFrame.CanvasPosition = Vector2.new(0, consoleFrame.CanvasSize.Y.Offset)
 end
 
+_G.logToConsole = function(text, messageType)
+	local colorMap = {
+		info = Color3.fromRGB(200, 200, 200),
+		warn = Color3.fromRGB(255, 200, 0),
+		error = Color3.fromRGB(255, 100, 100),
+		runtime = Color3.fromRGB(255, 50, 50),
+		compile = Color3.fromRGB(255, 0, 0)
+	}
+	addConsoleMessage("[" .. messageType .. "] " .. text, colorMap[messageType] or Color3.fromRGB(255, 255, 255))
+end
+
 runButton.MouseButton1Click:Connect(function()
 	local code = inputBox.Text
+
 	local env = setmetatable({}, {__index = getfenv()})
 
 	env.print = function(...)
@@ -1083,9 +1077,11 @@ runButton.MouseButton1Click:Connect(function()
 		local text = ""
 		for i, v in ipairs(args) do
 			text = text .. tostring(v)
-			if i < #args then text = text .. "\t" end
+			if i < #args then
+				text = text .. "\t"
+			end
 		end
-		addConsoleMessage(text, Color3.fromRGB(200, 200, 200))
+		_G.logToConsole(text, "info")
 	end
 
 	env.warn = function(...)
@@ -1093,42 +1089,16 @@ runButton.MouseButton1Click:Connect(function()
 		local text = "[warn] "
 		for i, v in ipairs(args) do
 			text = text .. tostring(v)
-			if i < #args then text = text .. "\t" end
+			if i < #args then
+				text = text .. "\t"
+			end
 		end
-		addConsoleMessage(text, Color3.fromRGB(255, 200, 0))
+		_G.logToConsole(text, "warn")
 	end
 
 	env.error = function(msg)
-		addConsoleMessage("[error] " .. tostring(msg), Color3.fromRGB(255, 100, 100))
+		_G.logToConsole(tostring(msg), "error")
 	end
-
-	local env = setmetatable({}, {__index = getfenv()})
-
-env.print = function(...)
-	local msg = ""
-	for i, v in ipairs({...}) do
-		msg = msg .. tostring(v)
-		if i < select("#", ...) then
-			msg = msg .. "\t"
-		end
-	end
-	_G.logToConsole(msg, "info") -- ✅ 콘솔에만 출력됨
-end
-
-env.warn = function(...)
-	local msg = ""
-	for i, v in ipairs({...}) do
-		msg = msg .. tostring(v)
-		if i < select("#", ...) then
-			msg = msg .. "\t"
-		end
-	end
-	_G.logToConsole(msg, "warn")
-end
-
-env.error = function(msg)
-	_G.logToConsole(tostring(msg), "error")
-end
 
 	local func, compileErr = loadstring(code)
 	if func then
@@ -1136,11 +1106,11 @@ end
 		task.spawn(function()
 			local success, runtimeErr = pcall(func)
 			if not success then
-				addConsoleMessage("[runtime] " .. tostring(runtimeErr), Color3.fromRGB(255, 50, 50))
+				_G.logToConsole(runtimeErr, "runtime")
 			end
 		end)
 	else
-		addConsoleMessage("[compile] " .. tostring(compileErr), Color3.fromRGB(255, 0, 0))
+		_G.logToConsole(compileErr, "compile")
 	end
 end)
 
