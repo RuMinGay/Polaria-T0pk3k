@@ -110,7 +110,7 @@ thumbImage.Position = UDim2.new(0, 10, 0, 10)
 thumbImage.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 thumbImage.BorderColor3 = Color3.fromRGB(140, 0, 255)
 thumbImage.BorderSizePixel = 2
-thumbImage.ScaleType = Enum.ScaleType.Fit  -- 사진 비율 유지
+thumbImage.ScaleType = Enum.ScaleType.Fit  -- �ъ쭊 鍮꾩쑉 �좎�
 
 local content, isReady = Players:GetUserThumbnailAsync(player.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size150x150)
 thumbImage.Image = content
@@ -202,17 +202,23 @@ local player = Players.LocalPlayer
 local selectedPlayer = nil
 
 local function selectPlayer(p)
-    selectedPlayer = p
-    nameLabel.Text = p.Name
+	selectedPlayer = p
 
-    local thumb = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
-    profileImage.Image = thumb
+	if p then
+		nameLabel.Text = p.Name
+		local thumb = Players:GetUserThumbnailAsync(p.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size100x100)
+		profileImage.Image = thumb
+	else
+		nameLabel.Text = "Server"
+		profileImage.Image = ""
+	end
 
-    for _, child in ipairs(buttonHolder:GetChildren()) do
-        if child:IsA("TextButton") then
-            child:Destroy()
-        end
-    end
+	task.wait() -- �뱀� RunService.Heartbeat:Wait()
+for _, child in ipairs(buttonHolder:GetChildren()) do
+	if child:IsA("TextButton") then
+		child:Destroy()
+	end
+end
 
     createActionButton("Fling", function()
     local function SkidFling(TargetPlayer)
@@ -715,7 +721,46 @@ local RunService = game:GetService("RunService")
     end
 end)
 
-createActionButton("TP to", function()
+createActionButton("loopgoto", function()
+    local Players = game:GetService("Players")
+    local RunService = game:GetService("RunService")
+
+    local localPlayer = Players.LocalPlayer
+    local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root or not selectedPlayer then return end
+
+    _G._following = _G._following or false
+    _G._savedCFrame = _G._savedCFrame or nil
+    _G._followConnection = _G._followConnection or nil
+
+    if not _G._following then
+        _G._following = true
+        _G._savedCFrame = root.CFrame
+
+        _G._followConnection = RunService.Heartbeat:Connect(function()
+            local targetChar = selectedPlayer.Character
+            local targetRoot = targetChar and targetChar:FindFirstChild("HumanoidRootPart")
+            if targetRoot and root then
+                root.CFrame = targetRoot.CFrame + Vector3.new(0, 0, 2)
+            end
+        end)
+    else
+        _G._following = false
+
+        if _G._followConnection then
+            _G._followConnection:Disconnect()
+            _G._followConnection = nil
+        end
+
+        if _G._savedCFrame then
+            root.CFrame = _G._savedCFrame
+            _G._savedCFrame = nil
+        end
+    end
+end)
+
+createActionButton("goto", function()
     if not selectedPlayer then return end
     local player = game:GetService("Players").LocalPlayer
     local character = player.Character
@@ -727,12 +772,17 @@ createActionButton("TP to", function()
 end)
 end
 
+if character and character:FindFirstChild("HumanoidRootPart") and targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") then
+        character.HumanoidRootPart.CFrame = targetCharacter.HumanoidRootPart.CFrame * CFrame.new(0, 3, 0)
+    end
+
 local function addPlayerToList(p)
     if p == player then return end
 
+    -- �대� 踰꾪듉�� �덈뒗吏� 泥댄겕
     for _, child in ipairs(playerListFrame:GetChildren()) do
         if child:IsA("TextButton") and child.Text == p.Name then
-            return 
+            return  -- �대� 踰꾪듉�� �덉쑝硫� �꾨Т寃껊룄 �덊븿
         end
     end
 
@@ -745,9 +795,162 @@ local function addPlayerToList(p)
     button.MouseButton1Click:Connect(function()
         selectPlayer(p)
     end)
+	local playerButtons = {} -- [UserId] = button
+
+-- �뚮젅�댁뼱 踰꾪듉 �앹꽦 �⑥닔 (�섏젙)
+local function createPlayerButton(p)
+	local button = Instance.new("TextButton", playerListFrame)
+	button.Size = UDim2.new(1, -10, 0, 30)
+	button.Text = p.Name
+	button.BackgroundColor3 = Color3.fromRGB(100, 0, 150)
+	button.TextColor3 = Color3.new(1, 1, 1)
+	button.BorderSizePixel = 0
+	button.LayoutOrder = p.UserId
+
+	button.MouseButton1Click:Connect(function()
+		selectPlayer(p)
+	end)
+
+	playerButtons[p.UserId] = button -- �깅줉
+end
+
+-- 紐⑤뱺 �꾩옱 �뚮젅�댁뼱 踰꾪듉 �앹꽦
+for _, p in ipairs(Players:GetPlayers()) do
+	if p ~= player then -- 濡쒖뺄 �뚮젅�댁뼱�� �쒖쇅
+		createPlayerButton(p)
+	end
+end
+
+-- �덈줈�� �뚮젅�댁뼱媛� �ㅼ뼱�ㅻ㈃ 踰꾪듉 �앹꽦
+Players.PlayerAdded:Connect(function(p)
+	createPlayerButton(p)
+end)
+
+-- �섍컙 �뚮젅�댁뼱�� 踰꾪듉 �쒓굅
+Players.PlayerRemoving:Connect(function(p)
+	local button = playerButtons[p.UserId]
+	if button and button.Parent then
+		button:Destroy()
+	end
+	playerButtons[p.UserId] = nil
+end)
+
+local Players = game:GetService("Players")
+
+Players.PlayerRemoving:Connect(function(removedPlayer)
+	for _, button in ipairs(playerListFrame:GetChildren()) do
+		if button:IsA("TextButton") and button.Text == removedPlayer.Name then
+			button:Destroy()
+		end
+	end
+
+	-- �좏깮�섏뼱 �덈뜕 �뚮젅�댁뼱媛� �섍컮�ㅻ㈃ 珥덇린��
+	if selectedPlayer == removedPlayer then
+		selectPlayer(nil)
+	end
+end)
+
+local function refreshPlayerList()
+	-- 湲곗〈 踰꾪듉 �꾨� �쒓굅 (Server 踰꾪듉�� �쒖쇅!)
+	for _, child in ipairs(playerListFrame:GetChildren()) do
+		if child:IsA("TextButton") and child ~= serverButton then
+			child:Destroy()
+		end
+	end
+
+	for _, p in ipairs(Players:GetPlayers()) do
+		if p ~= player then  -- 蹂몄씤�� �쒖쇅 (�먰븳�ㅻ㈃)
+			local button = Instance.new("TextButton")
+			button.Size = UDim2.new(1, -10, 0, 30)
+			button.Text = p.Name
+			button.BackgroundColor3 = Color3.fromRGB(70, 0, 120)
+			button.TextColor3 = Color3.new(1, 1, 1)
+			button.BorderSizePixel = 0
+			button.Parent = playerListFrame
+
+			button.MouseButton1Click:Connect(function()
+				selectPlayer(p)
+			end)
+		end
+	end
+end
+
+refreshPlayerList()
+
+-- �뚮젅�댁뼱 異붽� 諛� �쒓굅 �� �먮룞 媛깆떊
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(function()
+	refreshPlayerList()
+end)
+
+local connected = false
+
+if not connected then
+    Players.PlayerAdded:Connect(refreshPlayerList)
+    Players.PlayerRemoving:Connect(refreshPlayerList)
+    connected = true
+end
+Players.PlayerAdded:Connect(refreshPlayerList)
+Players.PlayerRemoving:Connect(refreshPlayerList)
+
+-- 湲곗〈�� 留뚮뱺 serverButton
+
+-- �꾩옱 �앹꽦�� 踰꾪듉�� 異붿쟻�섏� �딄퀬, 紐⑤뱺 TextButton�� 源붾걫�섍쾶 �쒓굅
+local function refreshPlayerList()
+    print("Refreshing Player List...")
+
+    -- serverButton �쒖쇅�섍퀬 TextButton ��젣
+    for _, child in ipairs(playerListFrame:GetChildren()) do
+        if child:IsA("TextButton") and child ~= serverButton then
+            child:Destroy()
+        end
+    end
+
+    -- �뚮젅�댁뼱 由ъ뒪�� �ㅼ떆 �앹꽦
+    for _, p in ipairs(Players:GetPlayers()) do
+        if p ~= Players.LocalPlayer then
+            local btn = Instance.new("TextButton")
+            btn.Size = UDim2.new(1, -10, 0, 30)
+            btn.Text = p.Name
+            btn.BackgroundColor3 = Color3.fromRGB(80, 0, 100)
+            btn.TextColor3 = Color3.new(1, 1, 1)
+            btn.BorderSizePixel = 0
+            btn.Parent = playerListFrame
+
+            btn.MouseButton1Click:Connect(function()
+                selectPlayer(p)
+            end)
+        end
+    end
+end
+
+-- 以묐났 �곌껐 諛⑹� + �대깽�� �곌껐�� UI 珥덇린�� �앸궃 �� �� �� 踰덈쭔!
+Players.PlayerAdded:Connect(function()
+    task.wait(0.1)
+    refreshPlayerList()
+end)
+
+Players.PlayerRemoving:Connect(function()
+    task.wait(0.1)
+    refreshPlayerList()
+end)
+
+-- 珥덇린 由ъ뒪�� 梨꾩슦湲�
+refreshPlayerList()
 end
 
 local executorTab = tabFrames["Executor"]
+
+_G.logToConsole = function(text, messageType)
+	local colorMap = {
+		info = Color3.fromRGB(200, 200, 200),
+		warn = Color3.fromRGB(255, 200, 0),
+		error = Color3.fromRGB(255, 100, 100),
+		runtime = Color3.fromRGB(255, 50, 50),
+		compile = Color3.fromRGB(255, 0, 0)
+	}
+	addConsoleMessage("[" .. messageType .. "] " .. text, colorMap[messageType] or Color3.fromRGB(255, 255, 255))
+end
 
 local inputBox = Instance.new("TextBox", executorTab)
 inputBox.Size = UDim2.new(1, -20, 1, -70)
@@ -777,7 +980,7 @@ statusLabel.BackgroundTransparency = 1
 statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0) 
 statusLabel.Font = Enum.Font.SourceSansBold
 statusLabel.TextSize = 18
-statusLabel.Text = "삽입 : 클라이언트                                                                                                                                                                                                                           "
+statusLabel.Text = "Execute : Client                                                                                                                                                                                                                           "
 statusLabel.Visible = true 
 
 runButton.MouseButton1Click:Connect(function()
@@ -786,7 +989,7 @@ runButton.MouseButton1Click:Connect(function()
     if func then
         task.spawn(func)
     else
-        warn("실행 오류: " .. err)
+        warn("�ㅽ뻾 �ㅻ쪟: " .. err)
     end
 end)
 
@@ -899,6 +1102,34 @@ runButton.MouseButton1Click:Connect(function()
 		addConsoleMessage("[error] " .. tostring(msg), Color3.fromRGB(255, 100, 100))
 	end
 
+	local env = setmetatable({}, {__index = getfenv()})
+
+env.print = function(...)
+	local msg = ""
+	for i, v in ipairs({...}) do
+		msg = msg .. tostring(v)
+		if i < select("#", ...) then
+			msg = msg .. "\t"
+		end
+	end
+	_G.logToConsole(msg, "info") -- ✅ 콘솔에만 출력됨
+end
+
+env.warn = function(...)
+	local msg = ""
+	for i, v in ipairs({...}) do
+		msg = msg .. tostring(v)
+		if i < select("#", ...) then
+			msg = msg .. "\t"
+		end
+	end
+	_G.logToConsole(msg, "warn")
+end
+
+env.error = function(msg)
+	_G.logToConsole(tostring(msg), "error")
+end
+
 	local func, compileErr = loadstring(code)
 	if func then
 		setfenv(func, env)
@@ -919,48 +1150,70 @@ local scriptList = {
     {
         Name = "Fe seraphic Blade",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:HttpGet("https://pastefy.app/59mJGQGe/raw"))()
         ]]
     },
     {
         Name = "RC7",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:HttpGet("https://scriptblox.com/raw/Universal-Script-RC7-7488"))()
         ]]
     },
     {
         Name = "Polaria",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:HttpGet("https://pastefy.app/cDHeL11e/raw"))()
         ]]
     },
     {
         Name = "TSB star glitcher(any character)",
         Code = [[
-			error = nil
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:HttpGet("https://raw.githubusercontent.com/Reapvitalized/TSB/refs/heads/main/SG_DEMO.lua"))()
         ]]
     },
     {
         Name = "Rochips universal",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             if "you wanna use rochips universal" then
 	local z_x,z_z="gzrux646yj/raw/main.ts","https://glot.io/snippets/"
 	local im,lonely,z_c=task.wait,game,loadstring
 	z_c(lonely:HttpGet(z_z..""..z_x))()
 	return ("This will load in about 2 - 30 seconds" or "according to your device and executor")
 end
+
+
         ]]
     },
     {
         Name = "prizz life",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:HttpGet("https://raw.githubusercontent.com/RuMinGay/prizzlifeomgboy/refs/heads/main/prizzlifeomg"))()
         ]]
     },
         {
-        Name = "T0PK3K old -- 얘는 콘솔에 뭐 찍힘",
+        Name = "T0PK3K old -- 얘는 콘솔에 뭐 남음",
         Code = [[
+			print = function() end
+warn = function() end
+error = function() return end
             loadstring(game:GetObjects('rbxassetid://376634699')[1].Source)()
         ]]
     }
