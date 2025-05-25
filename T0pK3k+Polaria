@@ -716,7 +716,6 @@ createActionButton("Reality pov", function()
     _G.isFirstPersonLock = _G.isFirstPersonLock or {}
 
     if _G.isFirstPersonLock[selectedPlayer] then
-        -- 토글 해제 시 복구
         local data = _G.isFirstPersonLock[selectedPlayer]
         if data.connection then
             data.connection:Disconnect()
@@ -729,7 +728,6 @@ createActionButton("Reality pov", function()
         return
     end
 
-    -- 토글 활성화
     camera.CameraType = Enum.CameraType.Custom
     camera.CameraSubject = targetChar:FindFirstChildOfClass("Humanoid")
 
@@ -744,9 +742,8 @@ createActionButton("Reality pov", function()
             return
         end
 
-        -- 마우스 회전은 camera가 처리, 카메라 위치만 selectedPlayer Head 바로 앞에 고정
         local lookVector = camera.CFrame.LookVector
-        local camPos = targetHead.Position + (lookVector * 0.5) -- 머리 앞으로 0.5 스터드 (더 앞당길수도)
+        local camPos = targetHead.Position + (lookVector * 0.5) 
 
         camera.CFrame = CFrame.new(camPos, camPos + lookVector)
     end)
@@ -794,8 +791,7 @@ createActionButton("Bring kill", function()
     bringEnabled = not bringEnabled
 
     local toggle = true
-    local heartbeatTask -- 루프 핸들 저장
-
+    local heartbeatTask
     if bringEnabled then
         heartbeatTask = task.spawn(function()
             while bringEnabled do
@@ -810,7 +806,6 @@ createActionButton("Bring kill", function()
                 local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
                 if not localHRP or not targetHRP then task.wait(0.2) continue end
 
-                -- 거리 3 또는 2를 토글함
                 local distance = toggle and 7 or 2
                 toggle = not toggle
 
@@ -822,7 +817,6 @@ createActionButton("Bring kill", function()
             end
         end)
     else
-        -- disable 시 task 루프 정지
         bringEnabled = false
     end
 end)
