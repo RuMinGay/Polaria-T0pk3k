@@ -674,7 +674,7 @@ createActionButton("Character Bring", function()
             local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
             if not localHRP or not targetHRP then return end
 
-            local frontPos = localHRP.CFrame.Position + (localHRP.CFrame.LookVector * 3)
+            local frontPos = localHRP.CFrame.Position + (localHRP.CFrame.LookVector * 2)
             local newCFrame = CFrame.new(frontPos, frontPos + localHRP.CFrame.LookVector)
             targetHRP.CFrame = newCFrame
         end)
@@ -685,6 +685,75 @@ createActionButton("Character Bring", function()
             connection = nil
         end
     end
+end)
+
+local frozenPlayers = {}
+
+createActionButton("Hitbox Freeze", function()
+    if not selectedPlayer or not selectedPlayer.Character then return end
+
+    local character = selectedPlayer.Character
+    local isFrozen = frozenPlayers[selectedPlayer] or false
+
+    for _, part in ipairs(character:GetDescendants()) do
+        if part:IsA("BasePart") and part.Name ~= "HumanoidRootPart" then
+            part.Anchored = not isFrozen
+        end
+    end
+
+    frozenPlayers[selectedPlayer] = not isFrozen
+end)
+
+createActionButton("Reality pov", function()
+    local player = game.Players.LocalPlayer
+    local camera = workspace.CurrentCamera
+    if not selectedPlayer then return end
+    local targetChar = selectedPlayer.Character
+    if not targetChar then return end
+    local targetHead = targetChar:FindFirstChild("Head")
+    if not targetHead then return end
+
+    _G.isFirstPersonLock = _G.isFirstPersonLock or {}
+
+    if _G.isFirstPersonLock[selectedPlayer] then
+        -- 토글 해제 시 복구
+        local data = _G.isFirstPersonLock[selectedPlayer]
+        if data.connection then
+            data.connection:Disconnect()
+        end
+
+        camera.CameraType = Enum.CameraType.Custom
+        camera.CameraSubject = player.Character and player.Character:FindFirstChildOfClass("Humanoid") or nil
+
+        _G.isFirstPersonLock[selectedPlayer] = nil
+        return
+    end
+
+    -- 토글 활성화
+    camera.CameraType = Enum.CameraType.Custom
+    camera.CameraSubject = targetChar:FindFirstChildOfClass("Humanoid")
+
+    local runService = game:GetService("RunService")
+    local connection
+    connection = runService.RenderStepped:Connect(function()
+        if not player.Character or not selectedPlayer or not selectedPlayer.Character then
+            camera.CameraSubject = player.Character and player.Character:FindFirstChildOfClass("Humanoid") or nil
+            camera.CameraType = Enum.CameraType.Custom
+            if connection then connection:Disconnect() end
+            _G.isFirstPersonLock[selectedPlayer] = nil
+            return
+        end
+
+        -- 마우스 회전은 camera가 처리, 카메라 위치만 selectedPlayer Head 바로 앞에 고정
+        local lookVector = camera.CFrame.LookVector
+        local camPos = targetHead.Position + (lookVector * 0.5) -- 머리 앞으로 0.5 스터드 (더 앞당길수도)
+
+        camera.CFrame = CFrame.new(camPos, camPos + lookVector)
+    end)
+
+    _G.isFirstPersonLock[selectedPlayer] = {
+        connection = connection,
+    }
 end)
 
 createActionButton("View pov", function()
@@ -721,12 +790,50 @@ createActionButton("View pov", function()
     end
 end)
 
+createActionButton("Bring kill", function()
+    bringEnabled = not bringEnabled
+
+    local toggle = true
+    local heartbeatTask -- 루프 핸들 저장
+
+    if bringEnabled then
+        heartbeatTask = task.spawn(function()
+            while bringEnabled do
+                local targetPlayer = selectedPlayer
+                if not targetPlayer or targetPlayer == localPlayer then task.wait(0.2) continue end
+
+                local localChar = localPlayer.Character
+                local targetChar = targetPlayer.Character
+                if not localChar or not targetChar then task.wait(0.2) continue end
+
+                local localHRP = localChar:FindFirstChild("HumanoidRootPart")
+                local targetHRP = targetChar:FindFirstChild("HumanoidRootPart")
+                if not localHRP or not targetHRP then task.wait(0.2) continue end
+
+                -- 거리 3 또는 2를 토글함
+                local distance = toggle and 7 or 2
+                toggle = not toggle
+
+                local frontPos = localHRP.CFrame.Position + (localHRP.CFrame.LookVector * distance)
+                local newCFrame = CFrame.new(frontPos, frontPos + localHRP.CFrame.LookVector)
+                targetHRP.CFrame = newCFrame
+
+                task.wait(0.001)
+            end
+        end)
+    else
+        -- disable 시 task 루프 정지
+        bringEnabled = false
+    end
+end)
+
 createActionButton("FTI Kill", function()
     local Players = game:GetService("Players")
     local localPlayer = Players.LocalPlayer
     local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
     local hrp = character:FindFirstChild("HumanoidRootPart")
 
+    -- 전역 상태 초기화
     _G.FTI_Toggled = _G.FTI_Toggled or false
     _G.FTI_Connection = _G.FTI_Connection or nil
     _G.FTI_OriginalCFrame = _G.FTI_OriginalCFrame or nil
@@ -744,6 +851,7 @@ createActionButton("FTI Kill", function()
     local function startTouchLoop()
         if not selectedPlayer or not selectedPlayer.Character then return end
 
+        -- 위치 저장
         if hrp then
             _G.FTI_OriginalCFrame = hrp.CFrame
         end
@@ -770,6 +878,7 @@ createActionButton("FTI Kill", function()
             _G.FTI_Connection = nil
         end
 
+        -- 위치 복구
         local char = localPlayer.Character
         local hrp = char and char:FindFirstChild("HumanoidRootPart")
         if _G.FTI_OriginalCFrame and hrp then
@@ -778,6 +887,7 @@ createActionButton("FTI Kill", function()
         _G.FTI_OriginalCFrame = nil
     end
 
+    -- 토글
     if not _G.FTI_Toggled then
         _G.FTI_Toggled = true
         startTouchLoop()
