@@ -688,13 +688,13 @@ createActionButton("Character Bring", function()
 end)
 
 createActionButton("View pov", function()
-local RunService = game:GetService("RunService")
     local camera = workspace.CurrentCamera
     local Players = game:GetService("Players")
     local player = Players.LocalPlayer
     if not selectedPlayer then return end
 
     if camera.CameraSubject == (selectedPlayer.Character and selectedPlayer.Character:FindFirstChild("Head")) then
+
         if player.Character and player.Character:FindFirstChild("Head") then
             camera.CameraSubject = player.Character.Head
             camera.CameraType = Enum.CameraType.Custom
@@ -723,53 +723,67 @@ end)
 
 createActionButton("FTI Kill", function()
     local Players = game:GetService("Players")
-local localPlayer = Players.LocalPlayer
-local toggled = false
-local connection = nil
-local targetParts = {}
+    local localPlayer = Players.LocalPlayer
+    local character = localPlayer.Character or localPlayer.CharacterAdded:Wait()
+    local hrp = character:FindFirstChild("HumanoidRootPart")
 
-local function getBodyParts(character)
-    local parts = {}
-    for _, part in ipairs(character:GetDescendants()) do
-        if part:IsA("BasePart") and not part:IsA("Accessory") then
-            table.insert(parts, part)
-        end
-    end
-    return parts
-end
+    _G.FTI_Toggled = _G.FTI_Toggled or false
+    _G.FTI_Connection = _G.FTI_Connection or nil
+    _G.FTI_OriginalCFrame = _G.FTI_OriginalCFrame or nil
 
-local function startTouchLoop()
-    if not selectedPlayer or not selectedPlayer.Character then return end
-    targetParts = getBodyParts(selectedPlayer.Character)
-    
-    connection = task.spawn(function()
-        while toggled and localPlayer.Character and localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm") do
-            local arm = localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm")
-            for _, part in ipairs(targetParts) do
-                firetouchinterest(arm, part, 0)
-                task.wait(0.05)
-                firetouchinterest(arm, part, 1)
+    local function getBodyParts(character)
+        local parts = {}
+        for _, part in ipairs(character:GetDescendants()) do
+            if part:IsA("BasePart") and not part:IsA("Accessory") then
+                table.insert(parts, part)
             end
-            task.wait(0.1)
         end
-    end)
-end
-
-local function stopTouchLoop()
-    toggled = false
-    if connection then
-        task.cancel(connection)
-        connection = nil
+        return parts
     end
-end
 
--- 토글 실행
-if not toggled then
-    toggled = true
-    startTouchLoop()
-else
-    stopTouchLoop()
-end
+    local function startTouchLoop()
+        if not selectedPlayer or not selectedPlayer.Character then return end
+
+        if hrp then
+            _G.FTI_OriginalCFrame = hrp.CFrame
+        end
+
+        local targetParts = getBodyParts(selectedPlayer.Character)
+
+        _G.FTI_Connection = task.spawn(function()
+            while _G.FTI_Toggled and localPlayer.Character and (localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm")) do
+                local arm = localPlayer.Character:FindFirstChild("RightHand") or localPlayer.Character:FindFirstChild("Right Arm")
+                for _, part in ipairs(targetParts) do
+                    firetouchinterest(arm, part, 0)
+                    task.wait(0.05)
+                    firetouchinterest(arm, part, 1)
+                end
+                task.wait(0.1)
+            end
+        end)
+    end
+
+    local function stopTouchLoop()
+        _G.FTI_Toggled = false
+        if _G.FTI_Connection then
+            task.cancel(_G.FTI_Connection)
+            _G.FTI_Connection = nil
+        end
+
+        local char = localPlayer.Character
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if _G.FTI_OriginalCFrame and hrp then
+            hrp.CFrame = _G.FTI_OriginalCFrame
+        end
+        _G.FTI_OriginalCFrame = nil
+    end
+
+    if not _G.FTI_Toggled then
+        _G.FTI_Toggled = true
+        startTouchLoop()
+    else
+        stopTouchLoop()
+    end
 end)
 
 createActionButton("loopgoto", function()
